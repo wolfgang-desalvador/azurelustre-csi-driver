@@ -79,20 +79,20 @@ echo "pkgVersion: ${pkgVersion}"
 pkgName="amlfs-lustre-client-${pkgVersion}"
 echo "pkgName: ${pkgName}"
 
-if [[ ! -z $(grep -R 'bionic' /etc/os-release) ]]; then
-  osReleaseCodeName="bionic"
-elif [[ ! -z $(grep -R 'jammy' /etc/os-release) ]]; then
-  osReleaseCodeName="jammy"
-elif [[ ! -z $(grep -R 'focal' /etc/os-release) ]]; then
-  osReleaseCodeName="focal"
-else
-  echo "Unsupported Linux distro"
-  exit 1
-fi
-
 echo "$(date -u) Command line arguments: $@"
 
 if [[ "${installClientPackages}" == "yes" ]]; then
+
+  if [[ ! -z $(grep -R 'bionic' /etc/os-release) ]]; then
+    osReleaseCodeName="bionic"
+  elif [[ ! -z $(grep -R 'jammy' /etc/os-release) ]]; then
+    osReleaseCodeName="jammy"
+  elif [[ ! -z $(grep -R 'focal' /etc/os-release) ]]; then
+    osReleaseCodeName="focal"
+  else
+    echo "Unsupported Linux distro"
+    exit 1
+  fi
   kernelVersion=$(uname -r)
 
   echo "$(date -u) Installing Lustre client packages for OS=${osReleaseCodeName}, kernel=${kernelVersion} "
