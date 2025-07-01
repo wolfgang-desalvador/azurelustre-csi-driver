@@ -140,6 +140,8 @@ if [[ "${installClientPackages}" == "yes" ]]; then
   else
     echo "$(date -u) Installed Lustre client packages for: ${pkgName}=${kernelVersion}"
   fi
+fi
+
 
   init_lnet="true"
 
@@ -186,8 +188,6 @@ if [[ "${installClientPackages}" == "yes" ]]; then
   modprobe -v lustre
 
   echo "$(date -u) Enabled Lustre client kernel modules."
-
-fi
 
 echo "$(date -u) Entering Lustre CSI driver"
 
