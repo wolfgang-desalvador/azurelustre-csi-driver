@@ -341,11 +341,13 @@ func (d *DynamicProvisioner) GetSkuValuesForLocation(ctx context.Context, locati
 	for skusPager.More() {
 		page, err := skusPager.NextPage(ctx)
 		if err != nil {
-			klog.Errorf("error retrieving SKUs for location %s: %v", location, err)
 			// Preserve the mapped gRPC code (e.g. 403 -> PermissionDenied with the
 			// auth hint, matching CreateAmlFilesystem/DeleteAmlFilesystem) while
 			// adding the SKU-listing context to the message.
 			st := status.Convert(convertHTTPResponseErrorToGrpcCodeError(err))
+			if st.Code() != codes.PermissionDenied {
+				klog.Errorf("error retrieving SKUs for location %s: %v", location, err)
+			}
 			return nil, status.Errorf(st.Code(), "error retrieving SKUs for location %s: %s", location, st.Message())
 		}
 

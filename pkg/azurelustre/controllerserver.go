@@ -311,6 +311,7 @@ func (d *Driver) CreateVolume(
 	createdByDynamicProvisioningStringValue := "f"
 
 	availableZones := []string{}
+	skuValidationAvailable := true
 
 	if shouldCreateAmlfsCluster {
 		createdByDynamicProvisioningStringValue = "t"
@@ -327,13 +328,17 @@ func (d *Driver) CreateVolume(
 
 		klog.V(2).Infof("finding capacity based on SKU %s for location %s", amlFilesystemProperties.SKUName, amlFilesystemProperties.Location)
 		lustreSkuValue, err := d.getSkuValuesForLocation(ctx, amlFilesystemProperties.SKUName, amlFilesystemProperties.Location)
-		if err != nil {
+		if status.Code(err) == codes.PermissionDenied {
+			skuValidationAvailable = false
+			klog.Warningf("cannot validate SKU %s in location %s because the driver identity (such as the kubelet identity) lacks subscription-level SKU read permissions; continuing with the default %d TiB capacity increment and without SKU capacity and zone validation, deployment may fail: %v", amlFilesystemProperties.SKUName, amlFilesystemProperties.Location, defaultLaaSOBlockSizeInTib, err)
+		} else if err != nil {
 			klog.Errorf("failed to get SKU values for %s in location %s, error: %v", amlFilesystemProperties.SKUName, amlFilesystemProperties.Location, err)
 			return nil, err
+		} else {
+			blockSizeInBytes = lustreSkuValue.IncrementInTib * util.TiB
+			maxCapacityInBytes = lustreSkuValue.MaximumInTib * util.TiB
+			availableZones = lustreSkuValue.AvailableZones
 		}
-		blockSizeInBytes = lustreSkuValue.IncrementInTib * util.TiB
-		maxCapacityInBytes = lustreSkuValue.MaximumInTib * util.TiB
-		availableZones = lustreSkuValue.AvailableZones
 	}
 
 	capacityInBytes, err = d.roundToAmlfsBlockSize(capacityInBytes, blockSizeInBytes, maxCapacityInBytes)
@@ -368,7 +373,7 @@ func (d *Driver) CreateVolume(
 					"CreateVolume Parameter %s %s must be one of: %v",
 					VolumeContextZone, amlFilesystemProperties.Zone, availableZones)
 			}
-		} else {
+		} else if skuValidationAvailable {
 			klog.Warningf("no zones available for SKU %s in location %s", amlFilesystemProperties.SKUName, amlFilesystemProperties.Location)
 			if len(amlFilesystemProperties.Zone) > 0 {
 				return nil, status.Errorf(codes.InvalidArgument,

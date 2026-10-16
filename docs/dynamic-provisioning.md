@@ -14,6 +14,13 @@ kubelet identity must have the correct permissions granted to it.
 Ensure that the kubelet identity has all of the permissions that are listed in the section
 on [Permissions For Kubelet Identity](driver-parameters.md#permissions-for-kubelet-identity).
 
+If the identity lacks subscription-level permissions to list SKUs (HTTP 403), the driver
+logs a warning and continues provisioning without validating SKU availability, capacity
+limits, or availability zones. Capacity is rounded using the default 4 TiB increment,
+which may not match the requested SKU. The requested SKU and zone are sent to Azure
+unchanged; deployment may fail if they or the capacity are invalid. Other SKU lookup
+errors and permission failures when creating or deleting filesystems remain fatal.
+
 ### Network Egress
 
 > [!IMPORTANT]

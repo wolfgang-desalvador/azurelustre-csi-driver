@@ -129,6 +129,7 @@ type FakeDynamicProvisioner struct {
 	DynamicProvisionerInterface
 	Filesystems   []*AmlFilesystemProperties
 	fakeCallCount map[string]int
+	skuError      error
 }
 
 func (f *FakeDynamicProvisioner) recordFakeCall(name string) {
@@ -160,6 +161,9 @@ func (f *FakeDynamicProvisioner) DeleteAmlFilesystem(_ context.Context, _, amlFi
 
 func (f *FakeDynamicProvisioner) GetSkuValuesForLocation(_ context.Context, location string) (map[string]*LustreSkuValue, error) {
 	f.recordFakeCall("GetSkuValuesForLocation")
+	if f.skuError != nil {
+		return nil, f.skuError
+	}
 	if location == errorLocation {
 		return nil, status.Errorf(codes.InvalidArgument, "error occurred calling API: %s", errorLocation)
 	}

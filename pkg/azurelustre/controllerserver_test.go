@@ -143,6 +143,59 @@ func TestDynamicCreateVolume_Success(t *testing.T) {
 	assert.NotEmpty(t, rep.GetVolume().GetVolumeContext())
 }
 
+func TestDynamicCreateVolume_SkuPermissionDenied(t *testing.T) {
+	for _, test := range []struct {
+		name string
+		sku  string
+		zone string
+	}{
+		{name: "with zone", sku: "AMLFS-Durable-Premium-125", zone: "zone1"},
+		{name: "without zone", sku: "AMLFS-Durable-Premium-125"},
+		{name: "unvalidated zone", sku: "AMLFS-Durable-Premium-125", zone: "unvalidated-zone"},
+		{name: "unknown SKU", sku: "future-sku", zone: "zone1"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			d := NewFakeDriver(t)
+			fakeDynamicProvisioner := &FakeDynamicProvisioner{skuError: status.Error(codes.PermissionDenied, "subscription-level SKU access denied")}
+			d.dynamicProvisioner = fakeDynamicProvisioner
+			ctrl := gomock.NewController(t)
+			d.cloud = azure.GetTestCloud(ctrl)
+			req := buildDynamicProvCreateVolumeRequest()
+			req.Parameters[VolumeContextSkuName] = test.sku
+			req.Parameters[VolumeContextZone] = test.zone
+			req.CapacityRange = &csi.CapacityRange{RequiredBytes: 129 * util.TiB}
+
+			resp, err := d.CreateVolume(context.Background(), req)
+			require.NoError(t, err)
+			require.NotNil(t, resp.GetVolume())
+			require.Len(t, fakeDynamicProvisioner.Filesystems, 1)
+			properties := fakeDynamicProvisioner.Filesystems[0]
+			assert.Equal(t, test.sku, properties.SKUName)
+			assert.Equal(t, test.zone, properties.Zone)
+			assert.Equal(t, float32(132), properties.StorageCapacityTiB)
+			assert.Equal(t, int64(132*util.TiB), resp.GetVolume().GetCapacityBytes())
+		})
+	}
+}
+
+func TestDynamicCreateVolume_SkuErrorsRemainFatal(t *testing.T) {
+	for _, code := range []codes.Code{codes.Unauthenticated, codes.Unavailable, codes.InvalidArgument, codes.Internal} {
+		t.Run(code.String(), func(t *testing.T) {
+			d := NewFakeDriver(t)
+			fakeDynamicProvisioner := &FakeDynamicProvisioner{skuError: status.Error(code, "SKU lookup failed")}
+			d.dynamicProvisioner = fakeDynamicProvisioner
+			ctrl := gomock.NewController(t)
+			d.cloud = azure.GetTestCloud(ctrl)
+
+			resp, err := d.CreateVolume(context.Background(), buildDynamicProvCreateVolumeRequest())
+			require.Error(t, err)
+			assert.Equal(t, code, status.Code(err))
+			assert.Nil(t, resp)
+			assert.Empty(t, fakeDynamicProvisioner.Filesystems)
+		})
+	}
+}
+
 func TestDynamicCreateVolume_Success_SendsCorrectProperties(t *testing.T) {
 	expectedAmlfsProperties := &AmlFilesystemProperties{
 		ResourceGroupName:    "test-resource-group",
